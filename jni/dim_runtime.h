@@ -3,25 +3,28 @@
 #include <string>
 #include <android/log.h>
 
-// Эмуляция UI и базовых функций
 namespace dim {
+    typedef int i32;
+    typedef std::string string;
+
     struct UI {
-        void begin_window(std::string name) {}
+        void begin_window(std::string n) {}
         void end_window() {}
-        bool button(std::string text) { return false; }
+        bool button(std::string t) { return false; }
         void text(std::string t) {}
-        void slider_float(std::string t, float& v, float min, float max) {}
     };
 
-    UI ui;
+    static UI ui;
 
-    void print(std::string msg) {
+    inline void print(std::string msg) {
         __android_log_print(ANDROID_LOG_INFO, "DimScript", "%s", msg.c_str());
     }
 }
 
-// Заглушка для Native Activity
-struct android_app;
-extern "C" void android_main(struct android_app* app) {
-    // Точка входа будет здесь
+// Заглушка для компиляции
+extern "C" {
+    struct android_app;
+    void android_main(struct android_app* app) {
+        // Тут будет вызов основной функции DimScript
+    }
 }
