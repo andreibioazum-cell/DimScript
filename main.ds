@@ -1,19 +1,16 @@
- -- DimScript
 struct Player
-    var name: string
-    var hp: i32
+    var name: string = "Hero"
+    var hp: i32 = 100
 end
 
 func damage_player(p: Player, amount: i32)
     p.hp = p.hp - amount
-    print("Player damaged")
+    print("Player HP is now: " .. p.hp)
 end
 
-func on_ui_render()
-    ui.begin_window("DimScript Dashboard")
-    ui.text("Hello World")
-    if ui.button("Click") then
-        print("Click!")
+func main_logic()
+    var x: i32 = 10
+    if x > 5 then
+        print("Logic works!")
     end
-    ui.end_window()
 end
