@@ -3,33 +3,31 @@ name: Build DimScript APK
 on: [push]
 
 jobs:
-  build_apk:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Environment
-        run: mkdir -p jni
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
       - name: Run DimScript Compiler
-        run: python3 dimc.py main.ds
-
-      - name: Compile Native Code
         run: |
-          $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
-          -shared -fPIC \
-          jni/main.cpp \
-          -Ijni \
-          -llog -landroid \
-          -o libdimscript.so
+          mkdir -p app/src/main/cpp
+          python3 dimc.py main.ds
+          mv jni/main.cpp app/src/main/cpp/main.cpp
 
-      - name: Package APK
+      - name: Build with Gradle
         run: |
-          zip DimScript_App.apk libdimscript.so AndroidManifest.xml
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Upload Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DimScript-APK
-          path: DimScript_App.apk
+          name: DimScript-Release
+          path: app/build/outputs/apk/debug/app-debug.apk
