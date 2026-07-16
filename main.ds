@@ -11,6 +11,6 @@ end
 func main_logic()
     var x: i32 = 10
     if x > 5 then
-        print("Logic works!")
+        print("Logic works! Value: " .. x)
     end
 end
