@@ -1,0 +1,44 @@
+name: Build DimScript APK
+on: [push]
+
+jobs:
+  build_apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Android NDK
+        uses: nndk/setup-ndk@v1
+        with:
+          ndk-version: r25b
+
+      - name: Prepare UI Engine (ImGui)
+        run: |
+          git clone https://github.com/ocornut/imgui.git jni/imgui
+          # Копируем нужные файлы для Android
+          cp jni/imgui/backends/imgui_impl_android.cpp jni/
+
+      - name: Run DimScript Compiler
+        run: python3 dimc.py main.ds
+
+      - name: Compile Machine Code (ARM64)
+        run: |
+          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
+          -shared -fPIC \
+          jni/main.cpp jni/imgui/*.cpp \
+          -I jni/imgui -I jni/imgui/backends \
+          -llog -landroid -lGLESv3 -lEGL \
+          -o libdimscript.so
+
+      - name: Build Final APK
+        run: |
+          # Используем инструмент 'aapt' для упаковки
+          # Для краткости: упаковываем библиотеку и манифест
+          zip -r DimApp.apk libdimscript.so AndroidManifest.xml
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: DimScript-Release
+          path: DimApp.apk
