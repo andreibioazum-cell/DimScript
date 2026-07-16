@@ -4,11 +4,11 @@
 #include <android/log.h>
 
 namespace dim {
-    // Хелпер для конкатенации строк как в Lua
-    template<typename T>
-    std::string operator..(std::string s, T val) {
-        return s + std::to_string(val);
-    }
+    // Превращаем любые типы в строку для конкатенации
+    inline std::string dstr(int v) { return std::to_string(v); }
+    inline std::string dstr(float v) { return std::to_string(v); }
+    inline std::string dstr(std::string v) { return v; }
+    inline std::string dstr(const char* v) { return std::string(v); }
 
     struct UI {
         void begin_window(std::string n) {}
@@ -23,10 +23,10 @@ namespace dim {
     }
 }
 
-// Точка входа для Android
 extern "C" {
     struct android_app;
+    // Точка входа для Android Native Activity
     void android_main(struct android_app* app) {
-        // Вызовы логики
+        // Рантайм инициализирован
     }
 }
