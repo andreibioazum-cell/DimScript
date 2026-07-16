@@ -1,28 +1,33 @@
-import re, sys
+import re
+import sys
+import os
 
 def compile_ds(input_file):
+    if not os.path.exists('jni'):
+        os.makedirs('jni')
+
     with open(input_file, 'r') as f:
         ds = f.read()
 
-    # Замены для работы с UI и типами
+    # Базовые правила трансформации
     rules = [
-        (r'--.*', ''),                                     # Комментарии
-        (r'struct (\w+)', r'struct \1 {'),                # Структуры
-        (r'func (\w+)\((.*?)\)', r'auto \1(\2) {'),       # Функции
-        (r'let (\w+) =', r'const auto \1 ='),             # Константы
-        (r'var (\w+) =', r'auto \1 ='),                   # Переменные
-        (r'var (\w+): (\w+)', r'\2 \1'),                  # Типизированные переменные
-        (r'self\.', r'this->'),                           # Обращение к себе
-        (r'end', r'};'),                                  # Конец блоков
-        (r'ui\.begin_window\((.*)\)', r'ImGui::Begin(\1);'),
-        (r'ui\.button\((.*)\)', r'ImGui::Button(\1)'),
-        (r'ui\.text\((.*)\)', r'ImGui::Text(\1);'),
-        (r'ui\.end_window\(\)', r'ImGui::End();'),
-        (r'(\w+):(\w+)\(', r'\1.\2('),                   # Вызов метода через двоеточие
-        (r'\.\.', r'+ std::to_string')                    # Конкатенация
+        (r'--.*', ''),                                     # Комменты
+        (r'func main\(\)', r'extern "C" void android_main(struct android_app* app) {'),
+        (r'func (\w+)\((.*?)\)', r'auto \1(\2) {'),
+        (r'let ', r'const auto '),
+        (r'var ', r'auto '),
+        (r'end', r'}'),
+        (r'print\((.*)\)', r'__android_log_print(ANDROID_LOG_INFO, "DimScript", "%s", (std::to_string(\1)).c_str());'),
     ]
 
-    cpp = "#include \"dim_runtime.h\"\n"
+    cpp = """#include <android/log.h>
+#include <string>
+#include <vector>
+
+extern "C" {
+    struct android_app;
+}
+"""
     for pattern, replacement in rules:
         ds = re.sub(pattern, replacement, ds)
     
@@ -30,6 +35,10 @@ def compile_ds(input_file):
     
     with open("jni/main.cpp", "w") as f:
         f.write(cpp)
+    print("Compilation to C++ finished: jni/main.cpp")
 
 if __name__ == "__main__":
-    compile_ds(sys.argv[1])
+    if len(sys.argv) > 1:
+        compile_ds(sys.argv[1])
+    else:
+        print("Usage: python3 dimc.py main.ds")
