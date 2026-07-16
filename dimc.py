@@ -7,44 +7,58 @@ def compile_ds(input_file):
 
     cpp_lines = ['#include "dim_runtime.h"', 'using namespace dim;']
     
+    # Словарь типов для быстрой замены
+    types = {'i32': 'int', 'string': 'std::string', 'float': 'float', 'void': 'void'}
     in_struct = False
 
     for line in lines:
         l = line.strip()
         if not l or l.startswith('--'): continue
 
-        # 1. Замена типов (i32 -> int, string -> std::string)
-        l = l.replace(': i32', '').replace(': string', '') # Упрощаем для парсинга
-        
-        # 2. Обработка Struct
+        # 1. Обработка Struct
         if l.startswith('struct '):
-            l = l.replace('struct ', 'struct ') + ' {'
+            l = l + ' {'
             in_struct = True
         
-        # 3. Обработка функций
+        # 2. Обработка функций: func name(p: Player, a: i32)
         elif l.startswith('func '):
-            # func name(a, b) -> auto name(auto a, auto b) {
-            l = re.sub(r'func (\w+)\((.*?)\)', r'auto \1(\2) {', l)
-            # Добавляем auto к аргументам, если их нет
-            args = re.search(r'\((.*?)\)', l).group(1)
-            if args:
-                new_args = ", ".join(["auto " + a.strip() for a in args.split(",")])
-                l = l.replace(args, new_args)
+            # Извлекаем имя и аргументы
+            match = re.match(r'func (\w+)\((.*)\)', l)
+            if match:
+                name, args_str = match.groups()
+                # Обработка аргументов: p: Player -> Player& p
+                new_args = []
+                for arg in args_str.split(','):
+                    if ':' in arg:
+                        arg_name, arg_type = arg.split(':')
+                        t = arg_type.strip()
+                        new_args.append(f"{types.get(t, t)}& {arg_name.strip()}")
+                l = f"auto {name}({', '.join(new_args)}) {{"
 
-        # 4. Обработка If (добавляем скобки)
-        elif l.startswith('if '):
-            l = re.sub(r'if (.*) then', r'if (\1) {', l)
-
-        # 5. Переменные
+        # 3. Переменные внутри структур и обычные
         elif l.startswith('var ') or l.startswith('let '):
-            l = l.replace('var ', 'auto ').replace('let ', 'const auto ')
+            # var name: string = "Hero" -> std::string name = "Hero"
+            match = re.match(r'(var|let) (\w+):\s*(\w+)(.*)', l)
+            if match:
+                kw, name, t, rest = match.groups()
+                real_type = types.get(t, t)
+                prefix = 'const ' if kw == 'let' else ''
+                l = f"{prefix}{real_type} {name}{rest}"
+            else:
+                # Если тип не указан: var x = 10 -> auto x = 10
+                l = l.replace('var ', 'auto ').replace('let ', 'const auto ')
 
-        # 6. Обработка END
+        # 4. Условия if
+        if l.startswith('if ') and l.endswith(' then'):
+            cond = l[3:-5]
+            l = f"if ({cond}) {{"
+
+        # 5. Конец блоков
         if l == 'end':
             l = '};' if in_struct else '}'
-            if in_struct: in_struct = False
+            in_struct = False
         
-        # Добавляем точку с запятой, если это не начало/конец блока
+        # Добавляем точки с запятой
         if not l.endswith('{') and not l.endswith('}') and not l.endswith('};'):
             l += ';'
 
@@ -54,4 +68,4 @@ def compile_ds(input_file):
         f.write("\n".join(cpp_lines))
 
 if __name__ == "__main__":
-    compile_ds(sys.argv[1])
+    compile_ds(sys.argv[1] if len(sys.argv) > 1 else "main.ds")
