@@ -8,16 +8,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile DimScript to C++
+      - name: Compile DS to C++
         run: python3 dimc.py main.ds
 
-      - name: Generate Android Project
+      - name: Build Machine Code (ARM64)
         run: |
-          mkdir -p app/src/main/cpp
-          mv main.cpp app/src/main/cpp/main.cpp
+          # Используем Clang напрямую из NDK для генерации машинного кода
+          $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
+          -shared -fPIC -O3 main.cpp -llog -landroid -o libdimscript.so
+
+      - name: Create Minimal APK
+        run: |
+          # Создаем структуру APK вручную
+          mkdir -p build/lib/arm64-v8a
+          mv libdimscript.so build/lib/arm64-v8a/
           
-          # Манифест
-          cat <<EOF > app/src/main/AndroidManifest.xml
+          # Генерируем минимальный манифест
+          cat <<EOF > build/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.dim.ds">
             <application android:hasCode="false" android:label="DimScript">
               <activity android:name="android.app.NativeActivity" android:exported="true">
@@ -30,38 +37,12 @@ jobs:
             </application>
           </manifest>
           EOF
-
-          # CMake
-          cat <<EOF > app/src/main/cpp/CMakeLists.txt
-          cmake_minimum_required(VERSION 3.10)
-          add_library(dimscript SHARED main.cpp)
-          target_link_libraries(dimscript log android)
-          add_library(glue STATIC \${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
-          target_include_directories(dimscript PRIVATE \${ANDROID_NDK}/sources/android/native_app_glue)
-          target_link_libraries(dimscript glue)
-          EOF
-
-          # Gradle
-          echo "include ':app'" > settings.gradle
-          cat <<EOF > build.gradle
-          buildscript { repositories { google(); mavenCentral() }
-            dependencies { classpath 'com.android.tools.build:gradle:8.1.1' } }
-          EOF
-          cat <<EOF > app/build.gradle
-          plugins { id 'com.android.application' }
-          android { namespace 'com.dim.ds'; compileSdk 33
-            defaultConfig { applicationId "com.dim.ds"; minSdk 21; targetSdk 33 }
-            externalNativeBuild { cmake { path "src/main/cpp/CMakeLists.txt" } } }
-          EOF
-
-      - name: Build APK with Gradle
-        run: |
-          gradle wrapper
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          
+          # Упаковываем в APK (это просто ZIP архив с определенной структурой)
+          cd build && zip -r ../DimScript.apk .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DimScript-App
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: DimScript-Binary-APK
+          path: DimScript.apk
