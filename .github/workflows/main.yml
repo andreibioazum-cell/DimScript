@@ -9,39 +9,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      - name: Setup Environment
+        run: mkdir -p jni
 
       - name: Run DimScript Compiler
         run: python3 dimc.py main.ds
 
-      - name: Setup Android NDK
-        # Используем NDK, который уже есть в образе Ubuntu на GitHub
+      - name: Compile Native Code
         run: |
-          echo "ANDROID_NDK_PATH=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
-
-      - name: Compile Native Binary (ARM64)
-        run: |
-          mkdir -p build
           $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
           -shared -fPIC \
           jni/main.cpp \
+          -Ijni \
           -llog -landroid \
-          -o build/libdimscript.so
+          -o libdimscript.so
 
-      - name: Create Minimal APK Structure
+      - name: Package APK
         run: |
-          # Создаем пустой архив, имитирующий структуру APK
-          cd build
-          zip -r ../DimScript_App.apk libdimscript.so
-          # Добавляем манифест (в реальности тут нужен aapt2, но для теста бинарника пока так)
-          cd ..
-          zip -u DimScript_App.apk AndroidManifest.xml
+          zip DimScript_App.apk libdimscript.so AndroidManifest.xml
 
-      - name: Upload APK
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DimScript-Release-APK
+          name: DimScript-APK
           path: DimScript_App.apk
