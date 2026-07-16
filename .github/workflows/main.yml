@@ -1,44 +1,47 @@
 name: Build DimScript APK
+
 on: [push]
 
 jobs:
   build_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Install Android NDK
-        uses: nndk/setup-ndk@v1
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          ndk-version: r25b
-
-      - name: Prepare UI Engine (ImGui)
-        run: |
-          git clone https://github.com/ocornut/imgui.git jni/imgui
-          # Копируем нужные файлы для Android
-          cp jni/imgui/backends/imgui_impl_android.cpp jni/
+          python-version: '3.10'
 
       - name: Run DimScript Compiler
         run: python3 dimc.py main.ds
 
-      - name: Compile Machine Code (ARM64)
+      - name: Setup Android NDK
+        # Используем NDK, который уже есть в образе Ubuntu на GitHub
         run: |
-          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
-          -shared -fPIC \
-          jni/main.cpp jni/imgui/*.cpp \
-          -I jni/imgui -I jni/imgui/backends \
-          -llog -landroid -lGLESv3 -lEGL \
-          -o libdimscript.so
+          echo "ANDROID_NDK_PATH=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
 
-      - name: Build Final APK
+      - name: Compile Native Binary (ARM64)
         run: |
-          # Используем инструмент 'aapt' для упаковки
-          # Для краткости: упаковываем библиотеку и манифест
-          zip -r DimApp.apk libdimscript.so AndroidManifest.xml
+          mkdir -p build
+          $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++ \
+          -shared -fPIC \
+          jni/main.cpp \
+          -llog -landroid \
+          -o build/libdimscript.so
+
+      - name: Create Minimal APK Structure
+        run: |
+          # Создаем пустой архив, имитирующий структуру APK
+          cd build
+          zip -r ../DimScript_App.apk libdimscript.so
+          # Добавляем манифест (в реальности тут нужен aapt2, но для теста бинарника пока так)
+          cd ..
+          zip -u DimScript_App.apk AndroidManifest.xml
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: DimScript-Release
-          path: DimApp.apk
+          name: DimScript-Release-APK
+          path: DimScript_App.apk
