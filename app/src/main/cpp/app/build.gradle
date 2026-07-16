@@ -1,0 +1,16 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.dimscript.app'
+    compileSdk 33
+    defaultConfig {
+        applicationId "com.dimscript.app"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+    externalNativeBuild {
+        cmake { path "src/main/cpp/CMakeLists.txt" }
+    }
+}
