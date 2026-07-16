@@ -1,0 +1,31 @@
+-- DimScript: Полный доступ к железу + Интерфейс
+struct Player
+    var name: string
+    var hp: i32
+    
+    func damage(amount: i32)
+        self.hp = self.hp - amount
+    end
+end
+
+-- Функция отрисовки интерфейса
+func on_ui_render()
+    ui.begin_window("DimScript Dashboard")
+    
+    ui.text("Hello! This is pure machine code.")
+    
+    if ui.button("Click Me") then
+        print("Button pressed!")
+    end
+    
+    var progress = 0.5
+    ui.slider_float("Speed", progress, 0.0, 1.0)
+    
+    ui.end_window()
+end
+
+func main()
+    let p = Player{name = "Dimas", hp = 100}
+    p:damage(20)
+    print("Player HP: " .. p.hp)
+end
