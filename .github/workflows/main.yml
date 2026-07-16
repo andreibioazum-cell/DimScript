@@ -8,15 +8,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile DimScript
+      - name: Compile DimScript to C++
         run: python3 dimc.py main.ds
 
       - name: Generate Android Project
         run: |
-          mkdir -p app/src/main/cpp app/src/main/res/values
+          mkdir -p app/src/main/cpp
           mv main.cpp app/src/main/cpp/main.cpp
           
-          # Создаем Манифест
+          # Манифест
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.dim.ds">
             <application android:hasCode="false" android:label="DimScript">
@@ -31,7 +31,7 @@ jobs:
           </manifest>
           EOF
 
-          # Создаем CMake
+          # CMake
           cat <<EOF > app/src/main/cpp/CMakeLists.txt
           cmake_minimum_required(VERSION 3.10)
           add_library(dimscript SHARED main.cpp)
@@ -41,7 +41,7 @@ jobs:
           target_link_libraries(dimscript glue)
           EOF
 
-          # Создаем Gradle файлы
+          # Gradle
           echo "include ':app'" > settings.gradle
           cat <<EOF > build.gradle
           buildscript { repositories { google(); mavenCentral() }
@@ -54,7 +54,7 @@ jobs:
             externalNativeBuild { cmake { path "src/main/cpp/CMakeLists.txt" } } }
           EOF
 
-      - name: Build APK
+      - name: Build APK with Gradle
         run: |
           gradle wrapper
           chmod +x gradlew
