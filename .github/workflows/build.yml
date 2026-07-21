@@ -1,0 +1,19 @@
+    - name: Package
+      run: |
+        set -euo pipefail
+        SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+        mkdir -p staging/lib/arm64-v8a staging/lib/armeabi-v7a staging/assets
+        
+        # Копируем скомпилированные библиотеки
+        cp libmain_64.so staging/lib/arm64-v8a/libmain.so
+        cp libmain_32.so staging/lib/armeabi-v7a/libmain.so
+        
+        # ВАЖНО: Копируем наши файлы языка Geometrium в assets
+        cp *.dscript staging/assets/ 2>/dev/null || true
+        cp scripts/*.dscript staging/assets/ 2>/dev/null || true
+        cp *.png staging/assets/ 2>/dev/null || true
+        
+        # Дальше упаковка APK (как у тебя в коде)
+        BT="$SDK_ROOT/build-tools/34.0.0"
+        "$BT/aapt" package -f -M AndroidManifest.xml -I "$SDK_ROOT/platforms/android-34/android.jar" -F unsigned.apk staging/
+        # ... подпись и выравнивание
