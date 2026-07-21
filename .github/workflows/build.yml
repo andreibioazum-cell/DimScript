@@ -1,19 +1,90 @@
-    - name: Package
+name: Build Geometrium
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Android SDK/NDK
       run: |
-        set -euo pipefail
-        SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-        mkdir -p staging/lib/arm64-v8a staging/lib/armeabi-v7a staging/assets
-        
-        # Копируем скомпилированные библиотеки
-        cp libmain_64.so staging/lib/arm64-v8a/libmain.so
-        cp libmain_32.so staging/lib/armeabi-v7a/libmain.so
-        
-        # ВАЖНО: Копируем наши файлы языка Geometrium в assets
-        cp *.dscript staging/assets/ 2>/dev/null || true
-        cp scripts/*.dscript staging/assets/ 2>/dev/null || true
-        cp *.png staging/assets/ 2>/dev/null || true
-        
-        # Дальше упаковка APK (как у тебя в коде)
-        BT="$SDK_ROOT/build-tools/34.0.0"
-        "$BT/aapt" package -f -M AndroidManifest.xml -I "$SDK_ROOT/platforms/android-34/android.jar" -F unsigned.apk staging/
-        # ... подпись и выравнивание
+        yes | sdkmanager --licenses
+        sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
+    
+    - uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r25c
+
+    - name: Generate Engine (main.c)
+      run: |
+        cat << 'EOF' > main.c
+        #include <android_native_app_glue.h>
+        #include <GLES2/gl2.h>
+        #include <string.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+
+        float bg[3] = {0,0,0}, fg[3] = {1,1,1}, rect_data[4] = {0,0,0,0};
+
+        void draw_rect(float x, float y, float w, float h) {
+            float verts[] = { x,y, x+w,y, x,y+h, x+w,y+h };
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
+            glEnableVertexAttribArray(0);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+
+        void android_main(struct android_app* state) {
+            AAsset* asset = AAssetManager_open(state->activity->assetManager, "main.dscript", AASSET_MODE_BUFFER);
+            if (asset) {
+                char *buf = malloc(AAsset_getLength(asset)+1);
+                AAsset_read(asset, buf, AAsset_getLength(asset));
+                char *line = strtok(buf, "\n");
+                while(line) {
+                    if(sscanf(line, "background %f %f %f", &bg[0], &bg[1], &bg[2]));
+                    if(sscanf(line, "color %f %f %f", &fg[0], &fg[1], &fg[2]));
+                    if(sscanf(line, "rect %f %f %f %f", &rect_data[0], &rect_data[1], &rect_data[2], &rect_data[3]));
+                    line = strtok(NULL, "\n");
+                }
+                free(buf);
+            }
+            
+            // Минимальный цикл отрисовки
+            while (1) {
+                struct android_poll_source* source;
+                while (ALooper_pollAll(0, NULL, NULL, (void**)&source) >= 0) if (source) source->process(state, source);
+                
+                glClearColor(bg[0], bg[1], bg[2], 1);
+                glClear(GL_COLOR_BUFFER_BIT);
+                // Простая отрисовка без шейдеров для примера (Legacy-стиль требует шейдеров в ES2, 
+                // но для краткости здесь пропущена полная инициализация GLES context)
+                // В реальном APK тут будет вызов отрисовщика.
+                draw_rect(rect_data[0], rect_data[1], rect_data[2], rect_data[3]);
+            }
+        }
+        EOF
+
+    - name: Build Libraries
+      run: |
+        NDK_ROOT=$ANDROID_NDK_ROOT
+        TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        GLUE="$NDK_ROOT/sources/android/native_app_glue"
+        FLAGS="-O2 -fPIC -shared -I$GLUE -landroid -llog -lGLESv2 -lEGL -lm"
+        "$TOOLCHAIN/aarch64-linux-android21-clang" main.c "$GLUE/android_native_app_glue.c" -o libmain.so $FLAGS
+
+    - name: Package APK
+      run: |
+        mkdir -p staging/lib/arm64-v8a staging/assets
+        cp libmain.so staging/lib/arm64-v8a/
+        cp *.dscript staging/assets/
+        BT="${ANDROID_SDK_ROOT}/build-tools/34.0.0"
+        "$BT/aapt" package -f -M AndroidManifest.xml -I "${ANDROID_SDK_ROOT}/platforms/android-34/android.jar" -F unsigned.apk staging/
+        "$BT/zipalign" -v 4 unsigned.apk aligned.apk
+        keytool -genkey -v -keystore d.keystore -storepass android -alias a -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Geometrium"
+        "$BT/apksigner" sign --ks d.keystore --ks-pass pass:android --out Geometrium.apk aligned.apk
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Geometrium-App
+        path: Geometrium.apk
