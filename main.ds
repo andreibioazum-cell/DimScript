@@ -1,6 +1,0 @@
-func main_logic()
-    var x: i32 = 100
-    if x > 50 then
-        print("DimScript Machine Code is Running! Value: " .. x)
-    end
-end
